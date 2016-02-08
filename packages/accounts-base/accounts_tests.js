@@ -111,7 +111,7 @@ Tinytest.add('accounts - insertUserDoc username', function (test) {
     {profile: {name: 'Foo Bar'}},
     userIn
   );
-  var userOut = Meteor.users.findOne(userId);
+  var userOut = Meteor.users.findById(userId);
 
   test.equal(typeof userOut.createdAt, 'object');
   test.equal(userOut.profile.name, 'Foo Bar');
@@ -126,7 +126,7 @@ Tinytest.add('accounts - insertUserDoc username', function (test) {
   }, 'Username already exists.');
 
   // cleanup
-  Meteor.users.remove(userId);
+  Meteor.users.removeById(userId);
 });
 
 Tinytest.add('accounts - insertUserDoc email', function (test) {
@@ -143,7 +143,7 @@ Tinytest.add('accounts - insertUserDoc email', function (test) {
     {profile: {name: 'Foo Bar'}},
     userIn
   );
-  var userOut = Meteor.users.findOne(userId);
+  var userOut = Meteor.users.findById(userId);
 
   test.equal(typeof userOut.createdAt, 'object');
   test.equal(userOut.profile.name, 'Foo Bar');
@@ -176,12 +176,12 @@ Tinytest.add('accounts - insertUserDoc email', function (test) {
   var userId3 = Accounts.insertUserDoc(
       {}, {emails: [{address: email3}]}
   );
-  var user3 = Meteor.users.findOne(userId3);
+  var user3 = Meteor.users.findById(userId3);
   test.equal(typeof user3.createdAt, 'object');
 
   // cleanup
-  Meteor.users.remove(userId);
-  Meteor.users.remove(userId3);
+  Meteor.users.removeById(userId);
+  Meteor.users.removeById(userId3);
 });
 
 // More token expiration tests are in accounts-password
@@ -191,18 +191,17 @@ Tinytest.addAsync('accounts - expire numeric token', function (test, onComplete)
     name: 'Foo Bar'
   } }, userIn);
   var date = new Date(new Date() - 5000);
-  Meteor.users.update(userId, {
-    $set: {
-      "services.resume.loginTokens": [{
+
+  Meteor.users.setResumeTokens(userId,  [{
         hashedToken: Random.id(),
         when: date
       }, {
         hashedToken: Random.id(),
         when: +date
-      }]
-    }
-  });
-  var observe = Meteor.users.find(userId).observe({
+      }]);
+
+  var reactiveUsers = Meteor.users.getMongoUsersForReactiveWork();
+  var observe = reactiveUsers.find(userId).observe({
     changed: function (newUser) {
       if (newUser.services && newUser.services.resume &&
           _.isEmpty(newUser.services.resume.loginTokens)) {
@@ -218,9 +217,8 @@ Tinytest.addAsync('accounts - expire numeric token', function (test, onComplete)
 // Login tokens used to be stored unhashed in the database.  We want
 // to make sure users can still login after upgrading.
 var insertUnhashedLoginToken = function (userId, stampedToken) {
-  Meteor.users.update(
-    userId,
-    {$push: {'services.resume.loginTokens': stampedToken}}
+  Meteor.users.insertLoginToken(
+    userId, stampedToken
   );
 };
 
@@ -239,7 +237,8 @@ Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   // stolen *hashed* token, we know it's not a problem with the test.
   var userId2 = Accounts.insertUserDoc({}, {username: Random.id()});
   insertUnhashedLoginToken(userId2, Accounts._generateStampedLoginToken());
-  var stolenToken = Meteor.users.findOne(userId2).services.resume.loginTokens[0].token;
+
+  var stolenToken = Meteor.users.findById(userId2).services.resume.loginTokens[0].token;
   test.isTrue(stolenToken);
   connection = DDP.connect(Meteor.absoluteUrl());
   connection.call('login', {resume: stolenToken});
@@ -388,6 +387,7 @@ Tinytest.add(
     var onLoginStopper = Accounts.onLogin(function(attempt) {
       test.equal(Meteor.userId(), onLoginExpectedUserId, "onLogin");
     });
+
     var onLoginFailureStopper = Accounts.onLoginFailure(function(attempt) {
       test.equal(Meteor.userId(), onLoginFailureExpectedUserId, "onLoginFailure");
     });
