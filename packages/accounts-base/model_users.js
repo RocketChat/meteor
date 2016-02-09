@@ -11,10 +11,10 @@ export class ModelUsers {
         // Currently this is read directly by packages like accounts-password
         // and accounts-ui-unstyled.
         this._options = {};
-
+        this.connection = conn
         this.users = new Mongo.Collection("users", {
             _preventAutopublish: true,
-            connection: conn
+            connection: this.connection
         });
     }
 
@@ -65,16 +65,17 @@ export class ModelUsers {
     }
 
 
-   clearAllLoginTokens(usrId) {
+   clearAllLoginTokens(userId) {
        this.users.update(userId, {
            $set: {
                'services.resume.loginTokens': []
            }
        });
    }
-   insertHahsedLoginToken(userId, hashedToken, query) {
 
-       query = query ? _.clone(query) : {};
+   insertHahsedLoginToken(userId, hashedToken, qry) {
+    console.log("called insert login token " + userId + JSON.stringify(hashedToken));
+       var query = qry ? _.clone(qry) : {};
        query._id = userId;
        this.users.update(query, {
            $addToSet: {
@@ -85,7 +86,7 @@ export class ModelUsers {
    }
     findSingle(userid) {
 
-        return findOne(userid);
+        return this.users.findOne(userid);
     }
 
 
@@ -104,13 +105,13 @@ export class ModelUsers {
     }
 
     findUserWithNewtoken(hashedToken) {
-        this.users.findOne(
+      return  this.users.findOne(
             {"services.resume.loginTokens.hashedToken": hashedToken});
     }
 
 
     findUserWithNewOrOld(hashedToken, options) {
-        this.users.findOne({
+      return  this.users.findOne({
             $or: [
                 {"services.resume.loginTokens.hashedToken": hashedToken},
                 {"services.resume.loginTokens.token": options.resume}
@@ -143,20 +144,20 @@ export class ModelUsers {
             );
         });
     }
-
+    // may want to remove accounts reference by pushing it up later
     removeOtherTokens(userId, connection) {
         if (userId) {
             throw new Meteor.Error("You are not logged in.");
         }
         var currentToken = accounts._getLoginToken(connection.id);
-        accounts.users.update(userId, {
+        this.users.update(userId, {
             $pull: {
                 "services.resume.loginTokens": {hashedToken: {$ne: currentToken}}
             }
         });
     }
-    getNewToken(userid, connection) {
-        var user = accounts.users.findOne(userId, {
+    getNewToken(userId, connection) {
+        var user = this.users.findOne(userId, {
             fields: { "services.resume.loginTokens": 1 }
         });
         if (! userId || ! user) {
@@ -224,6 +225,10 @@ export class ModelUsers {
     findByService(selector) {
       return this.users.findOne(selector);
     }
+    // this needs to be tighten up
+    findBySelector(selector) {
+        return this.users.find(selector);
+    }
 
     updateAttributes(userid,attrs ) {
         this.users.update(userid, {
@@ -248,7 +253,12 @@ export class ModelUsers {
         );
     }
 
-
+    findUsersByService(servicehash) {
+        return this.users.find(servicehash).fetch();
+    }
+    findUsersInServices(serviceIdsArray) {
+        return this.users.find({"services.weibo.id": {$in: serviceIdsArray}});
+    }
     getMongoUsersForReactiveWork() {
         // only hook available to support reactivity when backed by mongo
         // alternative data providers will return null

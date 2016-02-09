@@ -31,7 +31,8 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Facebook', func
   // create an account with facebook
   var uid1 = Accounts.updateOrCreateUserFromExternalService(
     'facebook', {id: facebookId, monkey: 42}, {profile: {foo: 1}}).id;
-  var users = Meteor.users.find({"services.facebook.id": facebookId}).fetch();
+ //  var users = Meteor.users.find({"services.facebook.id": facebookId}).fetch();
+    var users = Meteor.users.findUsersByService({"services.facebook.id": facebookId});
   test.length(users, 1);
   test.equal(users[0].profile.foo, 1);
   test.equal(users[0].services.facebook.monkey, 42);
@@ -42,7 +43,7 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Facebook', func
     'facebook', {id: facebookId, llama: 50},
     {profile: {foo: 1000, bar: 2}}).id;
   test.equal(uid1, uid2);
-  users = Meteor.users.find({"services.facebook.id": facebookId}).fetch();
+  users = Meteor.users.findUsersByService({"services.facebook.id": facebookId});
   test.length(users, 1);
   test.equal(users[0].profile.foo, 1);
   test.equal(users[0].profile.bar, undefined);
@@ -52,7 +53,7 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Facebook', func
   test.equal(users[0].services.facebook.monkey, 42);
 
   // cleanup
-  Meteor.users.remove(uid1);
+  Meteor.users.removeById(uid1);
 });
 
 Tinytest.add('accounts - updateOrCreateUserFromExternalService - Weibo', function (test) {
@@ -64,16 +65,19 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Weibo', functio
     'weibo', {id: weiboId1}, {profile: {foo: 1}}).id;
   var uid2 = Accounts.updateOrCreateUserFromExternalService(
     'weibo', {id: weiboId2}, {profile: {bar: 2}}).id;
-  test.equal(Meteor.users.find({"services.weibo.id": {$in: [weiboId1, weiboId2]}}).count(), 2);
-  test.equal(Meteor.users.findOne({"services.weibo.id": weiboId1}).profile.foo, 1);
-  test.equal(Meteor.users.findOne({"services.weibo.id": weiboId1}).emails, undefined);
-  test.equal(Meteor.users.findOne({"services.weibo.id": weiboId2}).profile.bar, 2);
-  test.equal(Meteor.users.findOne({"services.weibo.id": weiboId2}).emails, undefined);
+    var users = Meteor.users.findUsersInServices([weiboId1, weiboId2]);
+  test.equal(users.count(), 2);
+  //  console.log(JSON.stringify(Meteor.users.findUsersByService({"services.weibo.id": weiboId1})));
+  test.equal(Meteor.users.findUsersByService({"services.weibo.id": weiboId1})[0].profile.foo, 1);
+  test.equal(Meteor.users.findUsersByService({"services.weibo.id": weiboId1})[0].emails, undefined);
+  test.equal(Meteor.users.findUsersByService({"services.weibo.id": weiboId2})[0].profile.bar, 2);
+  test.equal(Meteor.users.findUsersByService({"services.weibo.id": weiboId2})[0].emails, undefined);
 
   // cleanup
-  Meteor.users.remove(uid1);
-  Meteor.users.remove(uid2);
+  Meteor.users.removeById(uid1);
+  Meteor.users.removeById(uid2);
 });
+
 
 Tinytest.add('accounts - updateOrCreateUserFromExternalService - Twitter', function (test) {
   var twitterIdOld = parseInt(Random.hexString(4), 16);
@@ -82,7 +86,7 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Twitter', funct
   // create an account with twitter using the old ID format of integer
   var uid1 = Accounts.updateOrCreateUserFromExternalService(
     'twitter', {id: twitterIdOld, monkey: 42}, {profile: {foo: 1}}).id;
-  var users = Meteor.users.find({"services.twitter.id": twitterIdOld}).fetch();
+  var users = Meteor.users.findUsersByService({"services.twitter.id": twitterIdOld});
   test.length(users, 1);
   test.equal(users[0].profile.foo, 1);
   test.equal(users[0].services.twitter.monkey, 42);
@@ -93,11 +97,11 @@ Tinytest.add('accounts - updateOrCreateUserFromExternalService - Twitter', funct
   var uid2 = Accounts.updateOrCreateUserFromExternalService(
     'twitter', {id: twitterIdNew, monkey: 42}, {profile: {foo: 1}}).id;
   test.equal(uid1, uid2);
-  users = Meteor.users.find({"services.twitter.id": twitterIdNew}).fetch();
+  users = Meteor.users.findUsersByService({"services.twitter.id": twitterIdNew});
   test.length(users, 1);
 
   // cleanup
-  Meteor.users.remove(uid1);
+  Meteor.users.removeById(uid1);
 });
 
 
@@ -221,7 +225,7 @@ var insertUnhashedLoginToken = function (userId, stampedToken) {
     userId, stampedToken
   );
 };
-
+// reactive test
 Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   // Test that we can login when the database contains a leftover
   // old style unhashed login token.
@@ -303,6 +307,7 @@ Tinytest.addAsync(
   }
 );
 
+// reactive test
 Tinytest.add(
   'accounts - get new token',
   function (test) {
@@ -330,49 +335,55 @@ Tinytest.add(
     secondConn.disconnect();
   }
 );
-
+// reactive test
 Tinytest.addAsync(
   'accounts - remove other tokens',
   function (test, onComplete) {
-    // Test that the `removeOtherTokens` method removes all tokens other
-    // than the caller's token, thereby logging out and closing other
-    // connections.
-    var userId = Accounts.insertUserDoc({}, { username: Random.id() });
-    var stampedTokens = [];
-    var conns = [];
+      // Test that the `removeOtherTokens` method removes all tokens other
+      // than the caller's token, thereby logging out and closing other
+      // connections.
+      var userId = Accounts.insertUserDoc({}, {username: Random.id()});
 
-    _.times(2, function (i) {
-      stampedTokens.push(Accounts._generateStampedLoginToken());
-      Accounts._insertLoginToken(userId, stampedTokens[i]);
-      var conn = DDP.connect(Meteor.absoluteUrl());
-      conn.call('login', { resume: stampedTokens[i].token });
-      test.equal(conn.call('getCurrentLoginToken'),
-                 Accounts._hashLoginToken(stampedTokens[i].token));
-      conns.push(conn);
-    });
+      console.log(JSON.stringify(userId));
+      var stampedTokens = [];
+      var conns = [];
 
-    conns[0].call('removeOtherTokens');
-    simplePoll(
-      function () {
-        var tokens = _.map(conns, function (conn) {
-          return conn.call('getCurrentLoginToken');
-        });
-        return ! tokens[1] &&
-          tokens[0] === Accounts._hashLoginToken(stampedTokens[0].token);
-      },
-      function () { // success
-        _.each(conns, function (conn) {
-          conn.disconnect();
-        });
-        onComplete();
-      },
-      function () { // timed out
-        throw new Error("accounts - remove other tokens timed out");
-      }
-    );
+
+      _.times(2, function (i) {
+          stampedTokens.push(Accounts._generateStampedLoginToken());
+
+          Accounts._insertLoginToken(userId, stampedTokens[i]);
+          var conn = DDP.connect(Meteor.absoluteUrl());
+          console.log("stampedTokens " + JSON.stringify(stampedTokens));
+          conn.call('login', {resume: stampedTokens[i].token});
+          test.equal(conn.call('getCurrentLoginToken'),
+              Accounts._hashLoginToken(stampedTokens[i].token));
+          conns.push(conn);
+      });
+
+       conns[0].call('removeOtherTokens');
+       simplePoll(
+       function () {
+       var tokens = _.map(conns, function (conn) {
+       return conn.call('getCurrentLoginToken');
+       });
+       return ! tokens[1] &&
+       tokens[0] === Accounts._hashLoginToken(stampedTokens[0].token);
+       },
+       function () { // success
+       _.each(conns, function (conn) {
+       conn.disconnect();
+       });
+       onComplete();
+       },
+       function () { // timed out
+       throw new Error("accounts - remove other tokens timed out");
+       }
+       );
+
   }
 );
-
+//reactive test
 Tinytest.add(
   'accounts - hook callbacks can access Meteor.userId()',
   function (test) {

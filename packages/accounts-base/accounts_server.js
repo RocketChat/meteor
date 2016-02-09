@@ -33,6 +33,7 @@ export class AccountsServer extends AccountsCommon {
     };
     this._initServerPublications();
 
+
     // connectionId -> {connection, loginToken}
     this._accountData = {};
 
@@ -81,6 +82,7 @@ export class AccountsServer extends AccountsCommon {
       throw new Error("Meteor.userId can only be invoked in method calls. Use this.userId in publish functions.");
     return currentInvocation.userId;
   }
+
 
   ///
   /// LOGIN HOOKS
@@ -160,7 +162,6 @@ Ap._validateLogin = function (connection, attempt) {
   });
 };
 
-
 Ap._successfulLogin = function (connection, attempt) {
   this._onLoginHook.each(function (callback) {
     callback(cloneAttemptWithConnection(connection, attempt));
@@ -174,6 +175,7 @@ Ap._failedLogin = function (connection, attempt) {
     return true;
   });
 };
+
 
 
 ///
@@ -851,7 +853,7 @@ Ap._insertLoginToken = function (userId, stampedToken, query) {
 
 Ap._clearAllLoginTokens = function (userId) {
 
-  this.users.clearAllLoginTokens(usrId);
+  this.users.clearAllLoginTokens(userId);
   /*
   this.users.update(userId, {
     $set: {
@@ -884,6 +886,8 @@ Ap._removeTokenFromConnection = function (connectionId) {
     }
   }
 };
+
+
 
 Ap._getLoginToken = function (connectionId) {
   return this._getAccountData(connectionId, 'loginToken');
@@ -921,6 +925,7 @@ Ap._setLoginToken = function (userId, connection, newToken) {
         return;
       }
 
+
       var foundMatchingUser;
       // Because we upgrade unhashed login tokens to hashed tokens at
       // login time, sessions will only be logged in with a hashed
@@ -942,7 +947,7 @@ Ap._setLoginToken = function (userId, connection, newToken) {
       });
       */
 
-      var mongoUsersInstance = users.getMongoUsersForReactiveWork();
+      var mongoUsersInstance = self.users.getMongoUsersForReactiveWork();
 
       if (!mongoUsersInstance) {
         // throw an error, as this is not mongo backed
@@ -950,7 +955,7 @@ Ap._setLoginToken = function (userId, connection, newToken) {
       }
 
 
-      var observe = mongoUsersInsance.find({
+      var observe = mongoUsersInstance.find({
         _id: userId,
         'services.resume.loginTokens.hashedToken': newToken
       }, { fields: { _id: 1 } }).observeChanges({
@@ -1371,7 +1376,6 @@ Ap.updateOrCreateUserFromExternalService = function (
   options
 ) {
 
-
   options = _.clone(options || {});
 
   if (serviceName === "password" || serviceName === "resume")
@@ -1419,7 +1423,7 @@ Ap.updateOrCreateUserFromExternalService = function (
 
     // XXX Maybe we should re-use the selector above and notice if the update
     //     touches nothing?
-    this.users.update(user._id, setAttrs);
+    this.users.updateAttributes(user._id, setAttrs);
 
     return {
       type: serviceName,

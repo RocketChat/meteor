@@ -96,7 +96,9 @@ Accounts._findUserByQuery = function (query) {
     }
     var selector = {};
     selector[fieldName] = fieldValue;
-    user = Meteor.users.findOne(selector);
+    //user = Meteor.users.findOne(selector);
+    //**
+    user = Meteor.users.findBySelector(selector);
     // If user is not found, try a case insensitive lookup
     if (!user) {
       selector = selectorForFastCaseInsensitiveLookup(fieldName, fieldValue);
@@ -191,7 +193,8 @@ var checkForCaseInsensitiveDuplicates = function (fieldName, displayName, fieldV
   var skipCheck = _.has(Accounts._skipCaseInsensitiveChecksForTest, fieldValue);
 
   if (fieldValue && !skipCheck) {
-    var matchedUsers = Meteor.users.find(
+    //*** mod
+    var matchedUsers = Meteor.users.findBySelector(
       selectorForFastCaseInsensitiveLookup(fieldName, fieldValue)).fetch();
 
     if (matchedUsers.length > 0 &&
@@ -204,6 +207,7 @@ var checkForCaseInsensitiveDuplicates = function (fieldName, displayName, fieldV
     }
   }
 };
+
 
 // XXX maybe this belongs in the check package
 var NonEmptyString = Match.Where(function (x) {
