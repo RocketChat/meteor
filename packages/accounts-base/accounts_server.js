@@ -538,6 +538,7 @@ Ap._initServerMethods = function () {
     this.setUserId(null);
   };
 
+
   // Delete all the current user's tokens and close all open connections logged
   // in as this user. Returns a fresh new login token that this client can
   // use. Tests set Accounts._noConnectionCloseDelayForTest to delete tokens
@@ -609,7 +610,8 @@ Ap._initServerMethods = function () {
   //   tokenExpires: <expiration date> }.
   methods.getNewToken = function () {
     var self = this;
-    var newStampedToken = accounts.users.getNewToken(self.userId, self.connection);
+    var newStampedToken = accounts.users.getNewToken(self.userId, accounts._getLoginToken(self.connection.id),
+    accounts._generateStampedLoginToken());
     accounts._insertLoginToken(self.userId, newStampedToken);
     return accounts._loginUser(self, self.userId, newStampedToken);
 /*
@@ -646,8 +648,9 @@ Ap._initServerMethods = function () {
   // in. Returns nothing on success.
   methods.removeOtherTokens = function () {
     var self = this;
-
-    accounts.users.removeOtherTokens(self.userId, self.connection);
+    var loginToken = accounts._getLoginToken(self.connection.id);
+    console.log("login Token is " + loginToken);
+    accounts.users.removeOtherTokens(self.userId, loginToken);
 /*
     if (! self.userId) {
       throw new Meteor.Error("You are not logged in.");
@@ -828,7 +831,7 @@ Ap._hashStampedToken = function (stampedToken) {
 // logging in simultaneously has already inserted the new hashed
 // token.
 Ap._insertHashedLoginToken = function (userId, hashedToken, query) {
-  this.users.insertHahsedLoginToken(userId, hashedToken, query);
+  this.users.insertHLoginToken(userId, hashedToken, query);
 /*
   query = query ? _.clone(query) : {};
   query._id = userId;
@@ -1067,6 +1070,8 @@ function defaultResumeLoginHandler(accounts, options) {
     // after we read it).  Using $addToSet avoids getting an index
     // error if another client logging in simultaneously has already
     // inserted the new hashed token.
+    accounts.users.addNewHasedTokenIfOldUnhashedStillExists(user._id, options.reusme, hashedToken, token.when);
+    /*
     accounts.users.update(
       {
         _id: user._id,
@@ -1079,15 +1084,19 @@ function defaultResumeLoginHandler(accounts, options) {
         }
       }}
     );
+    */
 
     // Remove the old token *after* adding the new, since otherwise
     // another client trying to login between our removing the old and
     // adding the new wouldn't find a token to login with.
+    accounts.users.removeOldTokenAfterAddingNew(user._id, options.resume);
+    /*
     accounts.users.update(user._id, {
       $pull: {
         "services.resume.loginTokens": { "token": options.resume }
       }
     });
+    */
   }
 
   return {

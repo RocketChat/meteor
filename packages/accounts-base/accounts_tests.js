@@ -230,8 +230,11 @@ Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   // Test that we can login when the database contains a leftover
   // old style unhashed login token.
   var userId1 = Accounts.insertUserDoc({}, {username: Random.id()});
+    console.log("userId1 is " + userId1);
   var stampedToken = Accounts._generateStampedLoginToken();
+    console.log("stampedToken is " + JSON.stringify(stampedToken));
   insertUnhashedLoginToken(userId1, stampedToken);
+
   var connection = DDP.connect(Meteor.absoluteUrl());
   connection.call('login', {resume: stampedToken.token});
   connection.disconnect();
@@ -362,6 +365,7 @@ Tinytest.addAsync(
       });
 
        conns[0].call('removeOtherTokens');
+
        simplePoll(
        function () {
        var tokens = _.map(conns, function (conn) {

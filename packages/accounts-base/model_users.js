@@ -73,8 +73,8 @@ export class ModelUsers {
        });
    }
 
-   insertHahsedLoginToken(userId, hashedToken, qry) {
-    console.log("called insert login token " + userId + JSON.stringify(hashedToken));
+   insertHLoginToken(userId, hashedToken, qry) {
+    console.log("called insert login token " + userId + " --- " + JSON.stringify(hashedToken) + " query is " + JSON.stringify(qry));
        var query = qry ? _.clone(qry) : {};
        query._id = userId;
        this.users.update(query, {
@@ -86,9 +86,10 @@ export class ModelUsers {
    }
     findSingle(userid) {
 
-        return this.users.findOne(userid);
+        return this.users.findOne({_id: userid});
     }
 
+   // user = Meteor.users.findOne({ _id: query.id });
 
 
     findCurrentUser(userId) {
@@ -144,19 +145,22 @@ export class ModelUsers {
             );
         });
     }
-    // may want to remove accounts reference by pushing it up later
-    removeOtherTokens(userId, connection) {
-        if (userId) {
+
+    // eliminated accounts dependency
+    removeOtherTokens(userId, curToken) {
+        if (!userId) {
             throw new Meteor.Error("You are not logged in.");
         }
-        var currentToken = accounts._getLoginToken(connection.id);
+       // var currentToken = accounts._getLoginToken(connection.id);
         this.users.update(userId, {
             $pull: {
-                "services.resume.loginTokens": {hashedToken: {$ne: currentToken}}
+                "services.resume.loginTokens": {hashedToken: {$ne: curToken}}
             }
         });
     }
-    getNewToken(userId, connection) {
+
+    // eliminated accounts dependency
+    getNewToken(userId, curToken, newToken) {
         var user = this.users.findOne(userId, {
             fields: { "services.resume.loginTokens": 1 }
         });
@@ -167,22 +171,45 @@ export class ModelUsers {
         // expiration than the curren token. Otherwise, a bad guy with a
         // stolen token could use this method to stop his stolen token from
         // ever expiring.
-        var currentHashedToken = accounts._getLoginToken(connection.id);
+       //  var currentHashedToken = accounts._getLoginToken(connection.id);
         var currentStampedToken = _.find(
             user.services.resume.loginTokens,
             function (stampedToken) {
-                return stampedToken.hashedToken === currentHashedToken;
+                return stampedToken.hashedToken === curToken;
             }
         );
         if (! currentStampedToken) { // safety belt: this should never happen
             throw new Meteor.Error("Invalid login token");
         }
-        var newStampedToken = accounts._generateStampedLoginToken();
-        newStampedToken.when = currentStampedToken.when;
+        //var newStampedToken = accounts._generateStampedLoginToken();
 
-        return newStampedToken;
+
+        newToken.when = currentStampedToken.when;
+
+        return newToken;
 
     }
+  addNewHasedTokenIfOldUnhashedStillExists(userId, resume, hashedToken, when) {
+    this.users.update({ userId,
+            "services.resume.loginTokens.token": resume},
+    {
+    $addToSet: {
+        "services.resume.loginTokens":
+        {
+            "hashedToken":  hashedToken,
+                "when":when
+        }
+    }});
+  }
+
+
+   removeOldTokenAfterAddingNew(userid, resume) {
+       this.users.update(userid, {
+           $pull: {
+               "services.resume.loginTokens": {"token": resume}
+           }
+       });
+   }
 
     destroyToken(userId, loginToken) {
 
@@ -226,10 +253,12 @@ export class ModelUsers {
       return this.users.findOne(selector);
     }
     // this needs to be tighten up
+    findOneBySelector(selector) {
+        return this.users.findOne(selector);
+    }
     findBySelector(selector) {
         return this.users.find(selector);
     }
-
     updateAttributes(userid,attrs ) {
         this.users.update(userid, {
             $set: attrs
@@ -247,6 +276,7 @@ export class ModelUsers {
     }
 
     insertLoginToken(userId, stampedToken) {
+        console.log("INSERT normal login token - userid is " + userId + " token is " + JSON.stringify(stampedToken));
         this.users.update(
             userId,
             {$push: {'services.resume.loginTokens': stampedToken}}

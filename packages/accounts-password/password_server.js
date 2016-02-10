@@ -79,9 +79,10 @@ var checkPassword = Accounts._checkPassword;
 
 Accounts._findUserByQuery = function (query) {
   var user = null;
-
+console.log("query is " + JSON.stringify(query));
   if (query.id) {
-    user = Meteor.users.findOne({ _id: query.id });
+    user = Meteor.users.findSingle( query.id );
+    console.log("got user ==> " + JSON.stringify(user));
   } else {
     var fieldName;
     var fieldValue;
@@ -98,11 +99,15 @@ Accounts._findUserByQuery = function (query) {
     selector[fieldName] = fieldValue;
     //user = Meteor.users.findOne(selector);
     //**
-    user = Meteor.users.findBySelector(selector);
+
+    console.log("selector first is " + JSON.stringify(selector));
+    user = Meteor.users.findOneBySelector(selector);
     // If user is not found, try a case insensitive lookup
     if (!user) {
       selector = selectorForFastCaseInsensitiveLookup(fieldName, fieldValue);
-      var candidateUsers = Meteor.users.find(selector).fetch();
+      console.log("selector is " + JSON.stringify(selector));
+      var candidateUsers = Meteor.users.findBySelector(selector).fetch();
+      console.log("candidates are " + JSON.stringify(candidateUsers));
       // No match if multiple candidates are found
       if (candidateUsers.length === 1) {
         user = candidateUsers[0];
@@ -156,15 +161,15 @@ var selectorForFastCaseInsensitiveLookup = function (fieldName, string) {
   // Performance seems to improve up to 4 prefix characters
   var prefix = string.substring(0, Math.min(string.length, 4));
   var orClause = _.map(generateCasePermutationsForString(prefix),
-    function (prefixPermutation) {
-      var selector = {};
-      selector[fieldName] =
-        new RegExp('^' + Meteor._escapeRegExp(prefixPermutation));
-      return selector;
-    });
+      function (prefixPermutation) {
+        var selector = {};
+        selector[fieldName] =
+            new RegExp('^' + Meteor._escapeRegExp(prefixPermutation));
+        return selector;
+      });
   var caseInsensitiveClause = {};
   caseInsensitiveClause[fieldName] =
-    new RegExp('^' + Meteor._escapeRegExp(string) + '$', 'i')
+      new RegExp('^' + Meteor._escapeRegExp(string) + '$', 'i')
   return {$and: [{$or: orClause}, caseInsensitiveClause]};
 }
 
@@ -253,7 +258,7 @@ Accounts.registerLoginHandler("password", function (options) {
     user: userQueryValidator,
     password: passwordValidator
   });
-
+console.log("in password -> options is " + JSON.stringify(options));
 
   var user = Accounts._findUserByQuery(options.user);
   if (!user)
