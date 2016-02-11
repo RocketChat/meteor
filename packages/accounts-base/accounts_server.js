@@ -649,7 +649,7 @@ Ap._initServerMethods = function () {
   methods.removeOtherTokens = function () {
     var self = this;
     var loginToken = accounts._getLoginToken(self.connection.id);
-    console.log("login Token is " + loginToken);
+    // console.log("login Token is " + loginToken);
     accounts.users.removeOtherTokens(self.userId, loginToken);
 /*
     if (! self.userId) {
@@ -1014,6 +1014,7 @@ function defaultResumeLoginHandler(accounts, options) {
     return undefined;
 
   check(options.resume, String);
+  // console.log("in default RESUME handler (account_server.js)  -> options is " + JSON.stringify(options));
 
   var hashedToken = accounts._hashLoginToken(options.resume);
 
@@ -1031,8 +1032,9 @@ function defaultResumeLoginHandler(accounts, options) {
     // client connection logging in simultaneously might have already
     // converted the token.
     // user = accounts.users.findUserWithNewOrOld(hashedToken);
-     user = accounts.users.findUserWithNewOrOld(hashedToken, options);
-    
+
+     user = accounts.users.findUserWithNewOrOld(hashedToken, options.resume);
+    // console.log("in default RESUME, cannot find new token - trying both => user is " + JSON.stringify(user));
   }
 
   if (! user)
@@ -1070,7 +1072,7 @@ function defaultResumeLoginHandler(accounts, options) {
     // after we read it).  Using $addToSet avoids getting an index
     // error if another client logging in simultaneously has already
     // inserted the new hashed token.
-    accounts.users.addNewHasedTokenIfOldUnhashedStillExists(user._id, options.reusme, hashedToken, token.when);
+    accounts.users.addNewHashedTokenIfOldUnhashedStillExists(user._id, options.resume, hashedToken, token.when);
     /*
     accounts.users.update(
       {
@@ -1097,6 +1099,8 @@ function defaultResumeLoginHandler(accounts, options) {
       }
     });
     */
+    var tpSingle = accounts.users.findSingle(user._id);
+    // console.log("AFTER REPLACEMENT - here is what it looks like " + JSON.stringify(tpSingle));
   }
 
   return {

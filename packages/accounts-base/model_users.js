@@ -74,7 +74,7 @@ export class ModelUsers {
    }
 
    insertHLoginToken(userId, hashedToken, qry) {
-    console.log("called insert login token " + userId + " --- " + JSON.stringify(hashedToken) + " query is " + JSON.stringify(qry));
+    // console.log("called insert login token " + userId + " --- " + JSON.stringify(hashedToken) + " query is " + JSON.stringify(qry));
        var query = qry ? _.clone(qry) : {};
        query._id = userId;
        this.users.update(query, {
@@ -111,11 +111,11 @@ export class ModelUsers {
     }
 
 
-    findUserWithNewOrOld(hashedToken, options) {
+    findUserWithNewOrOld(newToken, oldToken) {
       return  this.users.findOne({
             $or: [
-                {"services.resume.loginTokens.hashedToken": hashedToken},
-                {"services.resume.loginTokens.token": options.resume}
+                {"services.resume.loginTokens.hashedToken": newToken},
+                {"services.resume.loginTokens.token": oldToken}
             ]
         });
     }
@@ -189,24 +189,27 @@ export class ModelUsers {
         return newToken;
 
     }
-  addNewHasedTokenIfOldUnhashedStillExists(userId, resume, hashedToken, when) {
-    this.users.update({ userId,
-            "services.resume.loginTokens.token": resume},
+  addNewHashedTokenIfOldUnhashedStillExists(userId, oldToken, newHashedToken, when) {
+    //  console.log("called addNewHasedTokenIfOldUnhashedStillExists with userID " + userId + "oldToken= " + oldToken + "newToken =" + newHashedToken +  "when = " + when);
+    this.users.update({_id: userId,
+            "services.resume.loginTokens.token": oldToken},
     {
     $addToSet: {
         "services.resume.loginTokens":
         {
-            "hashedToken":  hashedToken,
+            "hashedToken":  newHashedToken,
                 "when":when
         }
     }});
   }
 
 
-   removeOldTokenAfterAddingNew(userid, resume) {
+   removeOldTokenAfterAddingNew(userid, oldToken) {
+       // console.log("called removeOldTokenAfterAddingNew with userID " + userid + "oldToken= " + oldToken);
+
        this.users.update(userid, {
            $pull: {
-               "services.resume.loginTokens": {"token": resume}
+               "services.resume.loginTokens": {"token": oldToken}
            }
        });
    }
@@ -276,7 +279,7 @@ export class ModelUsers {
     }
 
     insertLoginToken(userId, stampedToken) {
-        console.log("INSERT normal login token - userid is " + userId + " token is " + JSON.stringify(stampedToken));
+        // console.log("INSERT normal login token - userid is " + userId + " token is " + JSON.stringify(stampedToken));
         this.users.update(
             userId,
             {$push: {'services.resume.loginTokens': stampedToken}}

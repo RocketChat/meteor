@@ -4,6 +4,7 @@ Meteor.methods({
   }
 });
 
+
 // XXX it'd be cool to also test that the right thing happens if options
 // *are* validated, but Accounts._options is global state which makes this hard
 // (impossible?)
@@ -19,6 +20,7 @@ Accounts.validateNewUser(function (user) {
   idsInValidateNewUser[user._id] = true;
   return true;
 });
+
 
 Tinytest.add('accounts - validateNewUser gets passed user with _id', function (test) {
   var newUserId = Accounts.updateOrCreateUserFromExternalService('foobook', {id: Random.id()}).userId;
@@ -218,6 +220,7 @@ Tinytest.addAsync('accounts - expire numeric token', function (test, onComplete)
 });
 
 
+
 // Login tokens used to be stored unhashed in the database.  We want
 // to make sure users can still login after upgrading.
 var insertUnhashedLoginToken = function (userId, stampedToken) {
@@ -230,9 +233,9 @@ Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   // Test that we can login when the database contains a leftover
   // old style unhashed login token.
   var userId1 = Accounts.insertUserDoc({}, {username: Random.id()});
-    console.log("userId1 is " + userId1);
+  //  console.log("userId1 is " + userId1);
   var stampedToken = Accounts._generateStampedLoginToken();
-    console.log("stampedToken is " + JSON.stringify(stampedToken));
+  //  console.log("stampedToken is " + JSON.stringify(stampedToken));
   insertUnhashedLoginToken(userId1, stampedToken);
 
   var connection = DDP.connect(Meteor.absoluteUrl());
@@ -254,7 +257,7 @@ Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   // Now do the same thing, this time with a stolen hashed token.
   var userId3 = Accounts.insertUserDoc({}, {username: Random.id()});
   Accounts._insertLoginToken(userId3, Accounts._generateStampedLoginToken());
-  stolenToken = Meteor.users.findOne(userId3).services.resume.loginTokens[0].hashedToken;
+  stolenToken = Meteor.users.findSingle(userId3).services.resume.loginTokens[0].hashedToken;
   test.isTrue(stolenToken);
   connection = DDP.connect(Meteor.absoluteUrl());
   // evil plan foiled
@@ -277,7 +280,7 @@ Tinytest.addAsync('accounts - login token', function (test, onComplete) {
   connection.disconnect();
 
   // The token is no longer available to be stolen.
-  stolenToken = Meteor.users.findOne(userId4).services.resume.loginTokens[0].token;
+  stolenToken = Meteor.users.findSingle(userId4).services.resume.loginTokens[0].token;
   test.isFalse(stolenToken);
 
   // After the upgrade, the client can still login with their original
@@ -347,7 +350,7 @@ Tinytest.addAsync(
       // connections.
       var userId = Accounts.insertUserDoc({}, {username: Random.id()});
 
-      console.log(JSON.stringify(userId));
+      //console.log(JSON.stringify(userId));
       var stampedTokens = [];
       var conns = [];
 
@@ -357,7 +360,7 @@ Tinytest.addAsync(
 
           Accounts._insertLoginToken(userId, stampedTokens[i]);
           var conn = DDP.connect(Meteor.absoluteUrl());
-          console.log("stampedTokens " + JSON.stringify(stampedTokens));
+          //console.log("stampedTokens " + JSON.stringify(stampedTokens));
           conn.call('login', {resume: stampedTokens[i].token});
           test.equal(conn.call('getCurrentLoginToken'),
               Accounts._hashLoginToken(stampedTokens[i].token));

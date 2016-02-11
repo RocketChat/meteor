@@ -325,6 +325,7 @@ Accounts.registerLoginHandler("password", function (options) {
     srp: String,
     password: passwordValidator
   });
+  // console.log("in password COMPAT 0.8.1.3 -> options is " + JSON.stringify(options));
 
   var user = Accounts._findUserByQuery(options.user);
   if (!user)
