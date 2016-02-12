@@ -490,7 +490,7 @@ Ap._runLoginHandlers = function (methodInvocation, options) {
 // in the process of becoming associated with hashed tokens and then
 // they'll get closed.
 Ap.destroyToken = function (userId, loginToken) {
-  users.destroyToken(userId, loginToken);
+  this.users.destroyToken(userId, loginToken);
 /*
   this.users.update(userId, {
     $pull: {

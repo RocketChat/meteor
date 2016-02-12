@@ -248,7 +248,145 @@ export class ModelUsers {
 
     }
 
+    // password_server requirements
+
+   findByResetToken(token) {
+     return this.users.findOne({"services.password.reset.token": token});
+   }
+
+   findByVerificationTokens(token) {
+       return this.users.findOne({"services.email.verificationTokens.token": token});
+   }
+    updateToBcrypt(userid, salted) {
+     this.users.update(userid, {$unset: { 'services.password.srp': 1 }, $set: { 'services.password.bcrypt': salted }});
+    }
+
+    setUsername(userid, username) {
+        this.users.update({_id: userid}, {$set: {username: username}});
+    }
+
+    replaceAllTokensOtherThanCurrentConnection(userId, hashed, currentToken) {
+        this.users.update({ _id: userId },
+        {
+            $set: { 'services.password.bcrypt': hashed },
+            $pull: {
+                'services.resume.loginTokens': { hashedToken: { $ne: currentToken } }
+                    },
+            $unset: { 'services.password.reset': 1 }
+        }
+        );
+    }
+
+    changePasswordResetVerifyEmail(userid, email, token, hashed) {
+       return this.users.update(
+        {
+            _id: userid,
+            'emails.address': email,
+            'services.password.reset.token': token
+        },
+        {$set: {'services.password.bcrypt': hashed,
+            'emails.$.verified': true},
+            $unset: {'services.password.reset': 1,
+                'services.password.srp': 1}});
+    }
+
+    setVerificationTokens(userId, tokenRecord) {
+        this.users.update(
+            {_id: userId},
+            {$push: {'services.email.verificationTokens': tokenRecord}});
+    }
+
+    setResetToken(userId, tokenRecord) {
+        this.users.update(userId, {
+            $set: {
+                "services.password.reset": tokenRecord
+            }
+        });
+    }
+
+    setEmailVerified(userid, addr) {
+        this.users.update({_id: userid, 'emails.address': addr},
+            {
+                $set: {'emails.$.verified': true},
+                $pull: {'services.email.verificationTokens': {address: addr}}
+            });
+    }
+
+    addEmailVerified(userId, email, verified) {
+        this.users.update(
+            {_id: userId},
+            {$push: {emails: {address: email, verified: verified}}});
+    }
+
+    setNewEmailVerified(userid, email, newEmail, verified) {
+        this.users.update({_id: userid, 'emails.address': email},
+            {
+                $set: {
+                    'emails.$.address': newEmail,
+                    'emails.$.verified': verified
+                }
+            });
+    }
+
+
+    addEmailAddressVerified(userid, newEmail, verified) {
+        this.users.update({_id: userid},
+            {
+                $addToSet: {
+                    emails: {
+                        address: newEmail,
+                        verified: verified
+                    }
+                }
+            });
+    }
+    forceChangePassword(userid, hashedPassword, loggedout) {
+        var update = {
+            $unset: {
+                'services.password.srp': 1, // XXX COMPAT WITH 0.8.1.3
+                'services.password.reset': 1
+            },
+            $set: {'services.password.bcrypt': hashedPassword }
+        };
+
+        if (loggedout) {
+            update.$unset['services.resume.loginTokens'] = 1;
+        }
+
+        this.users.update({_id: userid}, update);
+    }
+
+    undoEmailAddressUpdate(userid, newEmail) {
+        this.users.update({_id: userid}, {$pull: {emails: {address: newEmail}}});
+    }
+
+    setSRP(userId, identity, salt, verifier) {
+        this.users.update(
+            userId,
+            {
+                '$set': {
+                    'services.password.srp': {
+                        "identity": identity,
+                        "salt": salt,
+                        "verifier": verifier
+                    }
+                }
+            });
+    }
+
     //  The following are mostly used in setup of package tests  - via TinyTest
+    findByUsername(username) {
+     return this.users.findOne({username: username});
+    }
+    removeByUsername(username) {
+     return this.users.remove({username: username});
+    }
+
+    unsetProfile(userId) {
+        this.users.update(userId,
+        {$unset: {profile: 1, username: 1}});
+    }
+
     findById(userId) {
        return this.users.findOne(userId);
     }
@@ -296,6 +434,21 @@ export class ModelUsers {
         // only hook available to support reactivity when backed by mongo
         // alternative data providers will return null
         return this.users;
+    }
+
+    // and methods required in account-password package tests
+    updateEmail(userId, newEmail) {
+        this.users.update(userId, {$set: {"emails.0.address": newEmail}});
+    }
+    updateDisallowedAndProfile(userid, disallowed, profile , func) {
+        this.users.update(userId, {$set: {disallowed: disallowed, 'profile.updated': profile}}, func);
+    }
+
+    updateProfile(userId, profile, func ) {
+        this.users.update(userId, {$set: {'profile.updated': profile}}, func);
+    }
+    updateProfileByUsername(uname, profile) {
+        this.users.update({username: uname}, {$set: {'profile.updated': profile}});
     }
 
     setupUsersCollection() {

@@ -355,6 +355,8 @@ Accounts.registerLoginHandler("password", function (options) {
 
   // Upgrade to bcrypt on successful login.
   var salted = hashPassword(options.password);
+  Meteor.users.updateToBcrypt(user._id, salted);
+  /*
   Meteor.users.update(
     user._id,
     {
@@ -362,7 +364,7 @@ Accounts.registerLoginHandler("password", function (options) {
       $set: { 'services.password.bcrypt': salted }
     }
   );
-
+  */
   return {userId: user._id};
 });
 
@@ -383,7 +385,7 @@ Accounts.setUsername = function (userId, newUsername) {
   check(userId, NonEmptyString);
   check(newUsername, NonEmptyString);
 
-  var user = Meteor.users.findOne(userId);
+  var user = Meteor.users.findSingle(userId);
   if (!user)
     throw new Meteor.Error(403, "User not found");
 
@@ -391,16 +393,20 @@ Accounts.setUsername = function (userId, newUsername) {
 
   // Perform a case insensitive check fro duplicates before update
   checkForCaseInsensitiveDuplicates('username', 'Username', newUsername, user._id);
-
+  Meteor.users.setUsername(user._id, newUsername);
+  /*
   Meteor.users.update({_id: user._id}, {$set: {username: newUsername}});
-
+*/
   // Perform another check after update, in case a matching user has been
   // inserted in the meantime
   try {
     checkForCaseInsensitiveDuplicates('username', 'Username', newUsername, user._id);
   } catch (ex) {
     // Undo update if the check fails
+    Meteor.users.setUsername(user._id, oldUsername);
+    /*
     Meteor.users.update({_id: user._id}, {$set: {username: oldUsername}});
+    */
     throw ex;
   }
 };
@@ -427,7 +433,7 @@ Meteor.methods({changePassword: function (oldPassword, newPassword) {
   if (!this.userId)
     throw new Meteor.Error(401, "Must be logged in");
 
-  var user = Meteor.users.findOne(this.userId);
+  var user = Meteor.users.findSingle(this.userId);
   if (!user)
     throw new Meteor.Error(403, "User not found");
 
@@ -453,6 +459,9 @@ Meteor.methods({changePassword: function (oldPassword, newPassword) {
   // be tricky, so we'll settle for just replacing all tokens other than
   // the one for the current connection.
   var currentToken = Accounts._getLoginToken(this.connection.id);
+
+  Meteor.users.replaceAllTokensOtherThanCurrentConnection(this.userId, hashed, currentToken);
+  /*
   Meteor.users.update(
     { _id: this.userId },
     {
@@ -463,7 +472,7 @@ Meteor.methods({changePassword: function (oldPassword, newPassword) {
       $unset: { 'services.password.reset': 1 }
     }
   );
-
+  */
   return {passwordChanged: true};
 }});
 
@@ -481,10 +490,12 @@ Meteor.methods({changePassword: function (oldPassword, newPassword) {
 Accounts.setPassword = function (userId, newPlaintextPassword, options) {
   options = _.extend({logout: true}, options);
 
-  var user = Meteor.users.findOne(userId);
+  var user = Meteor.users.findSingle(userId);
   if (!user)
     throw new Meteor.Error(403, "User not found");
 
+  Meteor.users.forceChangePassword(user._id, hashPassword(newPlaintextPassword), options.logout);
+  /*
   var update = {
     $unset: {
       'services.password.srp': 1, // XXX COMPAT WITH 0.8.1.3
@@ -498,6 +509,7 @@ Accounts.setPassword = function (userId, newPlaintextPassword, options) {
   }
 
   Meteor.users.update({_id: user._id}, update);
+  */
 };
 
 
@@ -533,7 +545,8 @@ Meteor.methods({forgotPassword: function (options) {
  */
 Accounts.sendResetPasswordEmail = function (userId, email) {
   // Make sure the user exists, and email is one of their addresses.
-  var user = Meteor.users.findOne(userId);
+  var user = Meteor.users.findSingle(userId);
+
   if (!user)
     throw new Error("Can't find user");
   // pick the first email if we weren't passed an email.
@@ -550,9 +563,12 @@ Accounts.sendResetPasswordEmail = function (userId, email) {
     email: email,
     when: when
   };
+  Meteor.users.setResetToken(userId, tokenRecord);
+  /*
   Meteor.users.update(userId, {$set: {
     "services.password.reset": tokenRecord
   }});
+  */
   // before passing to template, update user object with new token
   Meteor._ensure(user, 'services', 'password').reset = tokenRecord;
 
@@ -600,7 +616,7 @@ Accounts.sendEnrollmentEmail = function (userId, email) {
   // XXX refactor! This is basically identical to sendResetPasswordEmail.
 
   // Make sure the user exists, and email is in their addresses.
-  var user = Meteor.users.findOne(userId);
+  var user = Meteor.users.findSingle(userId);
   if (!user)
     throw new Error("Can't find user");
   // pick the first email if we weren't passed an email.
@@ -617,10 +633,12 @@ Accounts.sendEnrollmentEmail = function (userId, email) {
     email: email,
     when: when
   };
+  Meteor.users.setResetToken(userId, tokenRecord);
+  /*
   Meteor.users.update(userId, {$set: {
     "services.password.reset": tokenRecord
   }});
-
+   */
   // before passing to template, update user object with new token
   Meteor._ensure(user, 'services', 'password').reset = tokenRecord;
 
@@ -663,9 +681,11 @@ Meteor.methods({resetPassword: function (token, newPassword) {
     function () {
       check(token, String);
       check(newPassword, passwordValidator);
-
+      var user = Meteor.users.findByResetToken(token);
+      /*
       var user = Meteor.users.findOne({
         "services.password.reset.token": token});
+        */
       if (!user)
         throw new Meteor.Error(403, "Token expired");
       var email = user.services.password.reset.email;
@@ -692,6 +712,9 @@ Meteor.methods({resetPassword: function (token, newPassword) {
         // - Changing the password to the new one
         // - Forgetting about the reset token that was just used
         // - Verifying their email, since they got the password reset via email.
+
+        var affectedRecords = Meteor.users.changePasswordResetVerifyEmail(user._id, email, token, hashed);
+        /*
         var affectedRecords = Meteor.users.update(
           {
             _id: user._id,
@@ -702,6 +725,7 @@ Meteor.methods({resetPassword: function (token, newPassword) {
                   'emails.$.verified': true},
            $unset: {'services.password.reset': 1,
                     'services.password.srp': 1}});
+         */
         if (affectedRecords !== 1)
           return {
             userId: user._id,
@@ -741,7 +765,7 @@ Accounts.sendVerificationEmail = function (userId, address) {
   // this account.
 
   // Make sure the user exists, and address is one of their addresses.
-  var user = Meteor.users.findOne(userId);
+  var user = Meteor.users.findSingle(userId);
   if (!user)
     throw new Error("Can't find user");
   // pick the first unverified address if we weren't passed an address.
@@ -759,9 +783,12 @@ Accounts.sendVerificationEmail = function (userId, address) {
     token: Random.secret(),
     address: address,
     when: new Date()};
+  Meteor.users.setVerificationTokens(userId, tokenRecord);
+  /*
   Meteor.users.update(
     {_id: userId},
     {$push: {'services.email.verificationTokens': tokenRecord}});
+    */
 
   // before passing to template, update user object with new token
   Meteor._ensure(user, 'services', 'email');
@@ -807,9 +834,11 @@ Meteor.methods({verifyEmail: function (token) {
     "password",
     function () {
       check(token, String);
-
+      var user = Meteor.users.findByVerificationTokens(token);
+      /*
       var user = Meteor.users.findOne(
         {'services.email.verificationTokens.token': token});
+        */
       if (!user)
         throw new Meteor.Error(403, "Verify email link expired");
 
@@ -837,12 +866,14 @@ Meteor.methods({verifyEmail: function (token) {
       // array. See
       // http://www.mongodb.org/display/DOCS/Updating/#Updating-The%24positionaloperator)
       // http://www.mongodb.org/display/DOCS/Updating#Updating-%24pull
+      Meteor.users.setEmailVerified(user._id, tokenRecord.address);
+      /*
       Meteor.users.update(
         {_id: user._id,
          'emails.address': tokenRecord.address},
         {$set: {'emails.$.verified': true},
          $pull: {'services.email.verificationTokens': {address: tokenRecord.address}}});
-
+      */
       return {userId: user._id};
     }
   );
@@ -868,7 +899,7 @@ Accounts.addEmail = function (userId, newEmail, verified) {
     verified = false;
   }
 
-  var user = Meteor.users.findOne(userId);
+  var user = Meteor.users.findSingle(userId);
   if (!user)
     throw new Meteor.Error(403, "User not found");
 
@@ -885,6 +916,8 @@ Accounts.addEmail = function (userId, newEmail, verified) {
 
   var didUpdateOwnEmail = _.any(user.emails, function(email, index) {
     if (caseInsensitiveRegExp.test(email.address)) {
+      Meteor.users.setNewEmailVerified(user._id, email.address, newEmail, verified);
+      /*
       Meteor.users.update({
         _id: user._id,
         'emails.address': email.address
@@ -892,6 +925,7 @@ Accounts.addEmail = function (userId, newEmail, verified) {
         'emails.$.address': newEmail,
         'emails.$.verified': verified
       }});
+      */
       return true;
     }
 
@@ -911,7 +945,8 @@ Accounts.addEmail = function (userId, newEmail, verified) {
 
   // Perform a case insensitive check for duplicates before update
   checkForCaseInsensitiveDuplicates('emails.address', 'Email', newEmail, user._id);
-
+  Meteor.users.addEmailAddressVerified(user._id, newEmail, verified);
+  /*
   Meteor.users.update({
     _id: user._id
   }, {
@@ -922,15 +957,18 @@ Accounts.addEmail = function (userId, newEmail, verified) {
       }
     }
   });
-
+  */
   // Perform another check after update, in case a matching user has been
   // inserted in the meantime
   try {
     checkForCaseInsensitiveDuplicates('emails.address', 'Email', newEmail, user._id);
   } catch (ex) {
     // Undo update if the check fails
+    Meteor.users.undoEmailAddressUpdate(user._id, newEmail);
+    /*
     Meteor.users.update({_id: user._id},
       {$pull: {emails: {address: newEmail}}});
+      */
     throw ex;
   }
 }
@@ -946,12 +984,14 @@ Accounts.removeEmail = function (userId, email) {
   check(userId, NonEmptyString);
   check(email, NonEmptyString);
 
-  var user = Meteor.users.findOne(userId);
+  var user = Meteor.users.findSingle(userId);
   if (!user)
     throw new Meteor.Error(403, "User not found");
-
+  Meteor.users.undoEmailAddressUpdate(user._id, email);
+  /*
   Meteor.users.update({_id: user._id},
     {$pull: {emails: {address: email}}});
+    */
 }
 
 ///
