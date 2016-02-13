@@ -79,10 +79,10 @@ var checkPassword = Accounts._checkPassword;
 
 Accounts._findUserByQuery = function (query) {
   var user = null;
-console.log("query is " + JSON.stringify(query));
+//console.log("query is " + JSON.stringify(query));
   if (query.id) {
     user = Meteor.users.findSingle( query.id );
-    console.log("got user ==> " + JSON.stringify(user));
+    // console.log("got user ==> " + JSON.stringify(user));
   } else {
     var fieldName;
     var fieldValue;
@@ -100,14 +100,14 @@ console.log("query is " + JSON.stringify(query));
     //user = Meteor.users.findOne(selector);
     //**
 
-    console.log("selector first is " + JSON.stringify(selector));
+    //console.log("selector first is " + JSON.stringify(selector));
     user = Meteor.users.findOneBySelector(selector);
     // If user is not found, try a case insensitive lookup
     if (!user) {
       selector = selectorForFastCaseInsensitiveLookup(fieldName, fieldValue);
-      console.log("selector is " + JSON.stringify(selector));
+      // console.log("selector is " + JSON.stringify(selector));
       var candidateUsers = Meteor.users.findBySelector(selector).fetch();
-      console.log("candidates are " + JSON.stringify(candidateUsers));
+      // console.log("candidates are " + JSON.stringify(candidateUsers));
       // No match if multiple candidates are found
       if (candidateUsers.length === 1) {
         user = candidateUsers[0];
@@ -258,7 +258,7 @@ Accounts.registerLoginHandler("password", function (options) {
     user: userQueryValidator,
     password: passwordValidator
   });
-console.log("in password -> options is " + JSON.stringify(options));
+// console.log("in password -> options is " + JSON.stringify(options));
 
   var user = Accounts._findUserByQuery(options.user);
   if (!user)

@@ -440,7 +440,7 @@ export class ModelUsers {
     updateEmail(userId, newEmail) {
         this.users.update(userId, {$set: {"emails.0.address": newEmail}});
     }
-    updateDisallowedAndProfile(userid, disallowed, profile , func) {
+    updateDisallowedAndProfile(userId, disallowed, profile , func) {
         this.users.update(userId, {$set: {disallowed: disallowed, 'profile.updated': profile}}, func);
     }
 
